@@ -1,0 +1,5 @@
+{
+  "name": "SiteSafe AI Inspector",
+  "description": "Upload construction site photos for automated OSHA/ISO hazard detection and risk reporting.",
+  "requestFramePermissions": []
+}
