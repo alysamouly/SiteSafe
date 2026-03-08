@@ -1,10 +1,40 @@
 import React, { useState } from 'react';
-import { Shield, Bell, HardHat, Save } from 'lucide-react';
+import { Shield, Bell, HardHat, Save, Loader2, Check } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { SettingsDoc } from '../services/firestoreService';
 
 type SettingsTab = 'ai' | 'notifications' | 'project';
 
 export function Settings() {
+    const { settings, updateSettings } = useAppContext();
     const [activeTab, setActiveTab] = useState<SettingsTab>('ai');
+    const [isSaving, setIsSaving] = useState(false);
+    const [showSaved, setShowSaved] = useState(false);
+
+    // Local form state derived from Firestore settings
+    const [localSettings, setLocalSettings] = useState<SettingsDoc>(settings);
+
+    // Sync local state when Firestore settings change
+    React.useEffect(() => {
+        setLocalSettings(settings);
+    }, [settings]);
+
+    const updateLocal = (partial: Partial<SettingsDoc>) => {
+        setLocalSettings(prev => ({ ...prev, ...partial }));
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await updateSettings(localSettings);
+            setShowSaved(true);
+            setTimeout(() => setShowSaved(false), 2000);
+        } catch (err) {
+            console.error('Failed to save settings:', err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const tabs = [
         { id: 'ai' as const, label: 'AI Analysis', icon: Shield },
@@ -19,9 +49,18 @@ export function Settings() {
                     <h1 className="text-3xl lg:text-5xl font-heading font-black text-dark tracking-tight uppercase">Settings</h1>
                     <p className="font-data text-dark/60 mt-4 text-sm">Manage your compliance preferences and account settings.</p>
                 </div>
-                <div className="mt-4 sm:mt-0">
-                    <button className="inline-flex items-center justify-center px-6 py-4 bg-dark text-paper font-heading font-bold text-[10px] tracking-widest uppercase rounded-full hover:bg-accent transition-colors">
-                        <Save className="w-4 h-4 mr-2" />
+                <div className="mt-4 sm:mt-0 flex items-center gap-3">
+                    {showSaved && (
+                        <span className="inline-flex items-center text-emerald-600 font-data text-xs font-bold uppercase tracking-widest">
+                            <Check className="w-4 h-4 mr-1" /> Saved
+                        </span>
+                    )}
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="inline-flex items-center justify-center px-6 py-4 bg-dark text-paper font-heading font-bold text-[10px] tracking-widest uppercase rounded-full hover:bg-accent transition-colors disabled:opacity-50"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                         Save Changes
                     </button>
                 </div>
@@ -62,34 +101,37 @@ export function Settings() {
                                     <legend className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Analysis Strictness</legend>
                                     <p className="font-data text-dark/60 text-xs mb-4 mt-1">Determine the threshold for flagging potential hazards.</p>
                                     <div className="space-y-3">
-                                        <label className="flex items-center p-4 rounded-xl border border-dark/10 hover:border-accent/50 cursor-pointer transition-colors">
-                                            <input name="strictness" type="radio" className="h-4 w-4 border-dark/30 text-accent focus:ring-accent" />
-                                            <div className="ml-4">
-                                                <span className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Lenient</span>
-                                                <p className="font-data text-dark/50 text-xs mt-0.5">Only flags obvious, high-risk critical hazards</p>
-                                            </div>
-                                        </label>
-                                        <label className="flex items-center p-4 rounded-xl border border-accent/50 bg-accent/5 cursor-pointer transition-colors">
-                                            <input name="strictness" type="radio" defaultChecked className="h-4 w-4 border-dark/30 text-accent focus:ring-accent" />
-                                            <div className="ml-4">
-                                                <span className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Normal</span>
-                                                <p className="font-data text-dark/50 text-xs mt-0.5">Balanced detection for everyday compliance</p>
-                                            </div>
-                                        </label>
-                                        <label className="flex items-center p-4 rounded-xl border border-dark/10 hover:border-accent/50 cursor-pointer transition-colors">
-                                            <input name="strictness" type="radio" className="h-4 w-4 border-dark/30 text-accent focus:ring-accent" />
-                                            <div className="ml-4">
-                                                <span className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Strict</span>
-                                                <p className="font-data text-dark/50 text-xs mt-0.5">Flags all potential minor deviations and warnings</p>
-                                            </div>
-                                        </label>
+                                        {(['lenient', 'normal', 'strict'] as const).map(level => (
+                                            <label key={level} className={`flex items-center p-4 rounded-xl border cursor-pointer transition-colors ${localSettings.analysisStrictness === level ? 'border-accent/50 bg-accent/5' : 'border-dark/10 hover:border-accent/50'}`}>
+                                                <input
+                                                    name="strictness"
+                                                    type="radio"
+                                                    checked={localSettings.analysisStrictness === level}
+                                                    onChange={() => updateLocal({ analysisStrictness: level })}
+                                                    className="h-4 w-4 border-dark/30 text-accent focus:ring-accent"
+                                                />
+                                                <div className="ml-4">
+                                                    <span className="font-heading font-bold text-dark text-xs uppercase tracking-widest">{level}</span>
+                                                    <p className="font-data text-dark/50 text-xs mt-0.5">
+                                                        {level === 'lenient' && 'Only flags obvious, high-risk critical hazards'}
+                                                        {level === 'normal' && 'Balanced detection for everyday compliance'}
+                                                        {level === 'strict' && 'Flags all potential minor deviations and warnings'}
+                                                    </p>
+                                                </div>
+                                            </label>
+                                        ))}
                                     </div>
                                 </fieldset>
 
                                 <div className="pt-6 border-t border-dark/10">
                                     <label htmlFor="compliance-standard" className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">Primary Compliance Standard</label>
                                     <p className="font-data text-dark/60 text-xs mb-3 mt-1">Which regulatory standard should the AI primarily reference.</p>
-                                    <select id="compliance-standard" className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent">
+                                    <select
+                                        id="compliance-standard"
+                                        value={localSettings.complianceStandard}
+                                        onChange={e => updateLocal({ complianceStandard: e.target.value })}
+                                        className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
+                                    >
                                         <option>OSHA (United States)</option>
                                         <option>ISO 45001 (International)</option>
                                         <option>HSE (United Kingdom)</option>
@@ -108,42 +150,36 @@ export function Settings() {
                                 <p className="font-data text-dark/60 mt-1 text-xs">Manage communication alerts and report delivery.</p>
                             </div>
                             <div className="p-8 space-y-4">
-                                <div className="flex items-center justify-between p-4 rounded-xl border border-dark/10">
-                                    <div>
-                                        <h3 className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Email Reports</h3>
-                                        <p className="font-data text-dark/50 text-xs mt-0.5">Receive weekly summary PDFs via email.</p>
+                                {[
+                                    { key: 'emailReports' as const, title: 'Email Reports', desc: 'Receive weekly summary PDFs via email.' },
+                                    { key: 'criticalAlerts' as const, title: 'Critical Alerts', desc: 'Instant push notifications for high-severity hazards.' },
+                                    { key: 'dailyDigest' as const, title: 'Daily Digest', desc: 'Summarized daily overview of all site inspections.' },
+                                ].map(item => (
+                                    <div key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-dark/10">
+                                        <div>
+                                            <h3 className="font-heading font-bold text-dark text-xs uppercase tracking-widest">{item.title}</h3>
+                                            <p className="font-data text-dark/50 text-xs mt-0.5">{item.desc}</p>
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type="checkbox"
+                                                id={`${item.key}-toggle`}
+                                                className="sr-only peer"
+                                                checked={localSettings[item.key]}
+                                                onChange={e => updateLocal({ [item.key]: e.target.checked })}
+                                            />
+                                            <label htmlFor={`${item.key}-toggle`} className="block w-11 h-6 bg-dark/20 peer-checked:bg-accent rounded-full cursor-pointer transition-colors after:content-[''] after:block after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow after:absolute after:top-0.5 after:left-0.5 after:transition-transform peer-checked:after:translate-x-5"></label>
+                                        </div>
                                     </div>
-                                    <div className="relative">
-                                        <input type="checkbox" id="email-toggle" className="sr-only peer" defaultChecked />
-                                        <label htmlFor="email-toggle" className="block w-11 h-6 bg-dark/20 peer-checked:bg-accent rounded-full cursor-pointer transition-colors after:content-[''] after:block after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow after:absolute after:top-0.5 after:left-0.5 after:transition-transform peer-checked:after:translate-x-5"></label>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between p-4 rounded-xl border border-dark/10">
-                                    <div>
-                                        <h3 className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Critical Alerts</h3>
-                                        <p className="font-data text-dark/50 text-xs mt-0.5">Instant push notifications for high-severity hazards.</p>
-                                    </div>
-                                    <div className="relative">
-                                        <input type="checkbox" id="critical-toggle" className="sr-only peer" defaultChecked />
-                                        <label htmlFor="critical-toggle" className="block w-11 h-6 bg-dark/20 peer-checked:bg-accent rounded-full cursor-pointer transition-colors after:content-[''] after:block after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow after:absolute after:top-0.5 after:left-0.5 after:transition-transform peer-checked:after:translate-x-5"></label>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between p-4 rounded-xl border border-dark/10">
-                                    <div>
-                                        <h3 className="font-heading font-bold text-dark text-xs uppercase tracking-widest">Daily Digest</h3>
-                                        <p className="font-data text-dark/50 text-xs mt-0.5">Summarized daily overview of all site inspections.</p>
-                                    </div>
-                                    <div className="relative">
-                                        <input type="checkbox" id="digest-toggle" className="sr-only peer" />
-                                        <label htmlFor="digest-toggle" className="block w-11 h-6 bg-dark/20 peer-checked:bg-accent rounded-full cursor-pointer transition-colors after:content-[''] after:block after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow after:absolute after:top-0.5 after:left-0.5 after:transition-transform peer-checked:after:translate-x-5"></label>
-                                    </div>
-                                </div>
+                                ))}
                                 <div className="pt-6 border-t border-dark/10">
                                     <label htmlFor="email-input" className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">Notification Email</label>
                                     <p className="font-data text-dark/60 text-xs mb-3 mt-1">Reports and alerts will be sent to this address.</p>
                                     <input
                                         id="email-input"
                                         type="email"
+                                        value={localSettings.notificationEmail}
+                                        onChange={e => updateLocal({ notificationEmail: e.target.value })}
                                         placeholder="you@company.com"
                                         className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
                                     />
@@ -160,40 +196,33 @@ export function Settings() {
                                 <p className="font-data text-dark/60 mt-1 text-xs">Configure project-specific settings and metadata.</p>
                             </div>
                             <div className="p-8 space-y-6">
-                                <div>
-                                    <label htmlFor="org-name" className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">Organization Name</label>
-                                    <p className="font-data text-dark/60 text-xs mb-3 mt-1">This appears on generated compliance reports.</p>
-                                    <input
-                                        id="org-name"
-                                        type="text"
-                                        placeholder="Acme Construction Co."
-                                        className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="project-location" className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">Default Site Location</label>
-                                    <p className="font-data text-dark/60 text-xs mb-3 mt-1">Auto-populates site name field on new inspections.</p>
-                                    <input
-                                        id="project-location"
-                                        type="text"
-                                        placeholder="Downtown Development Site — Block 7"
-                                        className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="lead-inspector" className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">Lead Inspector</label>
-                                    <p className="font-data text-dark/60 text-xs mb-3 mt-1">Default inspector assigned to new inspections.</p>
-                                    <input
-                                        id="lead-inspector"
-                                        type="text"
-                                        placeholder="Jane Smith"
-                                        className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
-                                    />
-                                </div>
+                                {[
+                                    { key: 'orgName' as const, label: 'Organization Name', desc: 'This appears on generated compliance reports.', placeholder: 'Acme Construction Co.' },
+                                    { key: 'defaultSiteLocation' as const, label: 'Default Site Location', desc: 'Auto-populates site name field on new inspections.', placeholder: 'Downtown Development Site — Block 7' },
+                                    { key: 'leadInspector' as const, label: 'Lead Inspector', desc: 'Default inspector assigned to new inspections.', placeholder: 'Jane Smith' },
+                                ].map(item => (
+                                    <div key={item.key}>
+                                        <label htmlFor={item.key} className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">{item.label}</label>
+                                        <p className="font-data text-dark/60 text-xs mb-3 mt-1">{item.desc}</p>
+                                        <input
+                                            id={item.key}
+                                            type="text"
+                                            value={localSettings[item.key]}
+                                            onChange={e => updateLocal({ [item.key]: e.target.value })}
+                                            placeholder={item.placeholder}
+                                            className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
+                                        />
+                                    </div>
+                                ))}
                                 <div className="pt-6 border-t border-dark/10">
                                     <label htmlFor="timezone" className="font-heading font-bold text-dark text-xs uppercase tracking-widest block">Timezone</label>
                                     <p className="font-data text-dark/60 text-xs mb-3 mt-1">Used for report timestamps and scheduling.</p>
-                                    <select id="timezone" className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent">
+                                    <select
+                                        id="timezone"
+                                        value={localSettings.timezone}
+                                        onChange={e => updateLocal({ timezone: e.target.value })}
+                                        className="block w-full px-4 py-3 border border-dark/10 rounded-xl font-data text-sm text-dark bg-white focus:outline-none focus:border-accent"
+                                    >
                                         <option>America/Los_Angeles (PST)</option>
                                         <option>America/New_York (EST)</option>
                                         <option>America/Chicago (CST)</option>

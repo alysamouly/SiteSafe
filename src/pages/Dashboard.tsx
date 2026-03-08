@@ -42,7 +42,7 @@ export function Dashboard() {
             const hazardsCount = filteredHazards.length;
             const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-            const savedInspection = addInspection({
+            const savedInspection = await addInspection({
                 site: sessionSite || 'Unknown Site',
                 date: today,
                 inspector: sessionInspector || 'System User',
@@ -55,7 +55,7 @@ export function Dashboard() {
 
             setLastInspectionId(savedInspection.id);
 
-            addReport({
+            await addReport({
                 title: `${sessionSite || 'Unknown Site'} Compliance Report`,
                 date: today,
                 size: '1.4 MB',
@@ -151,9 +151,9 @@ export function Dashboard() {
                             className="px-3 py-2 border border-dark/10 rounded-full font-data text-xs bg-white focus:outline-none focus:border-accent w-44"
                         />
                         <button
-                            onClick={() => {
+                            onClick={async () => {
                                 if (newProjectName.trim()) {
-                                    addProject(newProjectName.trim());
+                                    await addProject(newProjectName.trim());
                                     setNewProjectName('');
                                     setIsSessionActive(false);
                                     setImageUrl(null);
